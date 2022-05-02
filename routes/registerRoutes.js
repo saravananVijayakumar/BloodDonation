@@ -3,6 +3,7 @@ const app = express();
 const multer = require("multer");
 var nodemailer = require("nodemailer");
 const jwt = require("jsonwebtoken")
+const crypto=require("crypto");
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
@@ -40,6 +41,8 @@ app.post("/sendOTP", async (req, res) => {
             lowerMail = mail + mailDomain
         }
     }
+    mailTo  = lowerMail;
+    lowerMail=crypto.createHash("sha256").update(lowerMail).digest("hex");
 
     const success = await Register.findOne({ Email: lowerMail });
     try {
@@ -67,7 +70,7 @@ app.post("/sendOTP", async (req, res) => {
 
             var mailOptions = {
                 from: "noreply.blooddonar@gmail.com",
-                to: lowerMail,
+                to: mailTo,
                 subject: "OTP VERIFICATION",
                 html: "<p><center><strong>From BloodDonor Site</strong></center></p><p>Hi,</p><p>OTP: "+ OTP+"</p>"
             };
@@ -75,7 +78,7 @@ app.post("/sendOTP", async (req, res) => {
             transport.sendMail(mailOptions, (error, info) => {
                 if (!error) {
                     console.log("Email Sent", info.response);
-                    emailARR.push(lowerMail)
+                    emailARR.push(mailTo)
                     otpARR.push(OTP)
                     res.json("yes")
                 } else {
@@ -100,6 +103,7 @@ app.post("/verifyOTP", async (req, res) => {
             BloodGroup: "",
             changeBG: 0,
             Email: emailARR[emailARR.length - 1],
+            // Email: crypto.createHash("sha256").update("saravananvjd001@gmail.com").digest("hex"),
             Password: "",
             PhoneNumber: 1,
             Profile: "",
@@ -163,8 +167,9 @@ app.post("/newUser/:id", upload.single("file"), async (req, res) => {
         }
 
         if (Number(age) >= 18 && Number(age) <= 65) {
-
-                const ok = await Register.findOne({ PhoneNumber: req.body.phone });
+                let hashedPhoneNumber = crypto.createHash("sha256").update(req.body.phone ).digest('hex');
+                let hashedPassword = crypto.createHash("sha256").update(req.body.pass).digest('hex');
+                const ok = await Register.findOne({ PhoneNumber: hashedPhoneNumber});
                 try {
                     if (ok) {
                         res.json("Phone Number is already registered.");
@@ -189,8 +194,8 @@ app.post("/newUser/:id", upload.single("file"), async (req, res) => {
                             changeDOB: 0,
                             BloodGroup: req.body.bloodGroup,
                             changeBG: 0,
-                            Password: req.body.pass,
-                            PhoneNumber: req.body.phone,
+                            Password: hashedPassword,
+                            PhoneNumber: hashedPhoneNumber,
                             Profile: image,
                             Deactivate: false,
                             Activate: true

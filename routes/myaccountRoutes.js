@@ -338,7 +338,7 @@ app.post("/sendEmail", async (req, res) => {
                 html: `<div>
                 <p style="font-family:system-ui;font-size:30px;">Hi `+ success.Username + `</p><br>
                 <h1 style="font-family: "Gill Sans", sans-serif;font-size:20px;">A request has been receieved to change the password for your account</h1><br>
-                <center><a href='https://morning-fortress-21466.herokuapp.com/#/resetPass'><button style="color:white;background-color: dodgerblue;width: 300px;height: 40px;cursor: pointer;border-radius: 5px;outline: none;padding: 10px;border-color: dodgerblue;">Reset Password</button></a></center><br>
+                <center><a href='https://morning-fortress-21466.herokuapp.com/#/resetPass'><button style="color:white;background-color: dodgerblue;inline-size: 300px;block-size: 40px;cursor: pointer;border-radius: 5px;outline: none;padding: 10px;border-color: dodgerblue;">Reset Password</button></a></center><br>
                 <p style="font-family: Georgia, serif;font-size:20px;">If you did not initiate this request,please contact us immediately at <span style="color:dodgerblue;text-decoration:underline">` + "noreply.blooddonar@gmail.com" + `</span></p><br>
                 <p style="font-family: Georgia, serif;font-size:20px;">Thank you,</p>
                 <p style="font-family: Georgia, serif;font-size:20px;">BloodDonor Team</p></div>`,
