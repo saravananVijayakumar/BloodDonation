@@ -14,12 +14,16 @@ const registerRoutes = require("./routes/registerRoutes.js");
 const myaccountRoutes = require("./routes/myaccountRoutes.js");
 const mailRoutes = require("./routes/mailRoutes.js");
 const adminRoutes = require("./routes/adminRoutes.js");
+const thirdPartyRoutes = require("./routes/thirdPartyRoutes.js");
+const bloodBankRoutes = require("./routes/bloodBankRoutes.js")
 
 app.use("/BloodDonation/home", homeRoutes);
 app.use("/BloodDonation/needBlood", mailRoutes);
 app.use("/BloodDonation/register", registerRoutes);
 app.use("/BloodDonation/details", myaccountRoutes);
 app.use("/BloodDonation/adminPage", adminRoutes);
+app.use("/BloodDonation/thirdParty", thirdPartyRoutes);
+app.use("/BloodDonation/bloodBank", bloodBankRoutes);
 
 app.use(express.static(path.join(__dirname, "public")))
 app.get("/", (req, res) => {

@@ -4,6 +4,7 @@ const multer = require("multer");
 var nodemailer = require("nodemailer");
 const jwt = require("jsonwebtoken")
 const crypto=require("crypto");
+var CryptoJS=require("crypto-js");
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
@@ -13,6 +14,7 @@ const { Register } = require("../models/register");
 
 var otpARR = [];
 var emailARR = [];
+var key = CryptoJS.enc.Hex.parse('000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f');
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
@@ -41,8 +43,8 @@ app.post("/sendOTP", async (req, res) => {
             lowerMail = mail + mailDomain
         }
     }
-    mailTo  = lowerMail;
-    lowerMail=crypto.createHash("sha256").update(lowerMail).digest("hex");
+    var mailTo  = lowerMail;
+    lowerMail= CryptoJS.AES.encrypt(lowerMail, key, { mode: CryptoJS.mode.ECB }).toString();
 
     const success = await Register.findOne({ Email: lowerMail });
     try {
@@ -61,28 +63,35 @@ app.post("/sendOTP", async (req, res) => {
             var OTP = num1.toString() + num2.toString() + num3.toString() + num4.toString() + num5.toString() + num6.toString();
 
             var transport = nodemailer.createTransport({
-                service: "gmail",
+                host: "smtp-mail.outlook.com",
+                secureConnection: false,
+                port: 587,
+                tls: {
+                    ciphers:'SSLv3'
+                },
                 auth: {
-                    user: "noreply.blooddonar@gmail.com",
-                    pass: "saroflix112001"
+                    user: 'no.reply.blood.donor@outlook.com',
+                    pass: 'Saroflix@2001'
                 }
             });
 
             var mailOptions = {
-                from: "noreply.blooddonar@gmail.com",
+                from: "no.reply.blood.donor@outlook.com",
                 to: mailTo,
                 subject: "OTP VERIFICATION",
                 html: "<p><center><strong>From BloodDonor Site</strong></center></p><p>Hi,</p><p>OTP: "+ OTP+"</p>"
-            };
+            }
 
+            console.log(mailOptions);
             transport.sendMail(mailOptions, (error, info) => {
-                if (!error) {
-                    console.log("Email Sent", info.response);
-                    emailARR.push(mailTo)
-                    otpARR.push(OTP)
-                    res.json("yes")
-                } else {
+                if (error) {
                     console.log("Error", + error);
+                } else {
+                    console.log("Email Sent", info.response);
+                    emailARR.push(lowerMail)
+                    otpARR.push(OTP)
+                    console.log(OTP);
+                    res.json("yes")
                 }
             });
         }
@@ -90,11 +99,11 @@ app.post("/sendOTP", async (req, res) => {
         console.log(e);
     }
 })
-
 // Checking OTP
 
 app.post("/verifyOTP", async (req, res) => {
     if(otpARR[otpARR.length - 1] == req.body.otp){
+        console.log(emailARR);
 
         var SignupObj = {
             Username: "",
@@ -102,10 +111,12 @@ app.post("/verifyOTP", async (req, res) => {
             changeDOB: 0,
             BloodGroup: "",
             changeBG: 0,
-            Email: emailARR[emailARR.length - 1],
+            Email: emailARR[emailARR.length-1],
             // Email: crypto.createHash("sha256").update("saravananvjd001@gmail.com").digest("hex"),
             Password: "",
-            PhoneNumber: 1,
+            DonatedCount : 0,
+            PhoneNumber: "",
+            District: "",
             Profile: "",
             Deactivate: false,
             Activate: true
@@ -117,8 +128,6 @@ app.post("/verifyOTP", async (req, res) => {
                 let payload = { subject: save._id }
                 let token = jwt.sign(payload, "secretKey");
                 res.json({ token: token })
-                console.log("New user")
-                console.log(save);
             }
         } catch (err) {
             console.log(err);
@@ -167,9 +176,12 @@ app.post("/newUser/:id", upload.single("file"), async (req, res) => {
         }
 
         if (Number(age) >= 18 && Number(age) <= 65) {
-                let hashedPhoneNumber = crypto.createHash("sha256").update(req.body.phone ).digest('hex');
+                let hashedPhoneNumber = CryptoJS.AES.encrypt(req.body.phone, key, { mode: CryptoJS.mode.ECB }).toString();
                 let hashedPassword = crypto.createHash("sha256").update(req.body.pass).digest('hex');
                 const ok = await Register.findOne({ PhoneNumber: hashedPhoneNumber});
+
+                // const ok = await Register.findOne({ PhoneNumber: req.body.phone});
+                
                 try {
                     if (ok) {
                         res.json("Phone Number is already registered.");
@@ -195,13 +207,16 @@ app.post("/newUser/:id", upload.single("file"), async (req, res) => {
                             BloodGroup: req.body.bloodGroup,
                             changeBG: 0,
                             Password: hashedPassword,
+                            DonatedCOunt: 0,
                             PhoneNumber: hashedPhoneNumber,
+                            // PhoneNumber: req.body.phone,
+                            District: req.body.district,
                             Profile: image,
                             Deactivate: false,
                             Activate: true
                         }
 
-                        const save = await Register.findByIdAndUpdate({_id: params}, SignupObj)
+                        const save = await Register.findByIdAndUpdate({_id: params}, SignupObj, { returnOriginal: false })
                         try {
                             if (save) {
                                 res.json("ok")

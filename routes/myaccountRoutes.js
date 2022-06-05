@@ -3,12 +3,18 @@ const app = express();
 const multer = require("multer");
 var nodemailer = require("nodemailer");
 const jwt = require("jsonwebtoken");
+const crypto=require("crypto");
+var CryptoJS=require("crypto-js");
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use("/uploads", express.static("uploads"));
 
 const { Register } = require("../models/register");
+const { ID } = require("../models/IDs");
+const { BloodBankRegister} = require("../models/bloodBankDetails");
+
+var key = CryptoJS.enc.Hex.parse('000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f');
 
 // Check whether the user is exist or not
 
@@ -27,12 +33,18 @@ app.post("/", async (req, res) => {
         }
     }
 
+    lowerMail= CryptoJS.AES.encrypt(lowerMail, key, { mode: CryptoJS.mode.ECB }).toString();
+
+    console.log(lowerMail);
+
     const success = await Register.findOne({ Email: lowerMail });
+    let hashedPassword = crypto.createHash("sha256").update(req.body.pass).digest("hex");
+
     try {
         if (!success) {
             res.json("User not found!");
         } else {
-            if (success.Password != req.body.pass) {
+            if (success.Password != hashedPassword) {
                 res.json("Incorrect password");
             } else {
                 let payload = { subject: success._id }
@@ -51,10 +63,28 @@ app.get("/:id", async (req, res) => {
     const token = req.params.id;
     let payload = jwt.verify(token, "secretKey")
     const params = payload.subject;
-    const success = await Register.findById({ _id: params })
+    let success = await Register.findById({ _id: params })
+    let details = {
+        Username: success.Username,
+        DOB: success.DOB,
+        changeDOB: success.changeDOB,
+        BloodGroup: success.BloodGroup,
+        changeBG: success.changeBG,
+        Email: CryptoJS.AES.decrypt(success.Email, key, { mode: CryptoJS.mode.ECB }).toString(CryptoJS.enc.Utf8),
+        Password: success.Password,
+        ID: success._id.toString().slice(18),
+        DonatedCount: success.DonatedCount,
+        PhoneNumber: CryptoJS.AES.decrypt(success.PhoneNumber, key, { mode: CryptoJS.mode.ECB }).toString(CryptoJS.enc.Utf8),
+        District: success.District,
+        Profile: success.Profile,
+        Deactivate: success.Deactivate,
+        Activate: success.Activate
+        
+    }
+    console.log(details)
     try {
-        if (success)
-            res.json(success);
+        if (details)
+            res.json(details);
     } catch (e) {
         console.log(e);
     }
@@ -106,8 +136,6 @@ const storage = multer.diskStorage({
         cb(null, Date.now() + file.originalname);
     }
 });
-
-var upload = multer({ storage: storage });
 
 var upload = multer({ storage: storage });
 
@@ -176,8 +204,12 @@ app.patch("/update/:id", upload.single("file"), async (req, res) => {
                 val2 = 1
                 console.log("Blood Group can't be changed more than one time")
             }
+ 
+            let hashedPhoneNumber =  CryptoJS.AES.encrypt(req.body.phone, key, { mode: CryptoJS.mode.ECB }).toString(); 
 
-            if (success.PhoneNumber == req.body.phone) {
+            if (success.PhoneNumber == hashedPhoneNumber) {
+            // if (success.PhoneNumber == req.body.phone) {
+
                 var image;
                 if (req.file == undefined) {
                     console.log("User didn't changed the profile picture")
@@ -200,7 +232,8 @@ app.patch("/update/:id", upload.single("file"), async (req, res) => {
                     }
                 }
             } else {
-                const done = await Register.findOne({ PhoneNumber: req.body.phone })
+                const done = await Register.findOne({ PhoneNumber:  hashedPhoneNumber})
+                // const done = await Register.findOne({ PhoneNumber:  req.body.phone})
                 try {
                     if (done) {
                         console.log("Phone Number is already registered!");
@@ -218,7 +251,8 @@ app.patch("/update/:id", upload.single("file"), async (req, res) => {
                         var obj = {
                             Username: req.body.name,
                             DOB: dobUser,
-                            PhoneNumber: req.body.phone,
+                            PhoneNumber: hashedPhoneNumber,
+                            // PhoneNumber: req.body.phone,
                             changeDOB: val1,
                             BloodGroup: req.body.bloodGroup,
                             changeBG: val2
@@ -237,13 +271,14 @@ app.patch("/update/:id", upload.single("file"), async (req, res) => {
                         var obj = {
                             Username: req.body.name,
                             DOB: req.body.dob,
-                            PhoneNumber: req.body.phone,
+                            PhoneNumber: hashedPhoneNumber,
+                            // PhoneNumber: req.body.phone,
                             Profile: image,
                             changeDOB: val1,
                             BloodGroup: req.body.bloodGroup,
                             changeBG: val2
                         }
-                        const updated = await Register.findByIdAndUpdate({ _id: params }, obj, { returnOriginal: false })
+                        const updated = await Register.findByIdAndUpdate({ _id: params }, { returnOriginal: false }, obj)
                         try {
                             console.log("All are updated");
                             res.json("ok")
@@ -290,7 +325,8 @@ app.post("/verifyUser/:id", async (req, res) => {
     const success = await Register.findById({ _id: params })
     try {
         if (success) {
-            if (success.Password == req.body.pass) {
+            let hashedPassword = crypto.createHash("sha256").update(req.body.pass).digest("hex");
+            if (success.Password == hashedPassword) {
                 res.json("ok");
             } else {
                 res.json("Incorrect password!")
@@ -319,27 +355,37 @@ app.post("/sendEmail", async (req, res) => {
         }
     }
 
+    var mailTo = lowerMail;
+    lowerMail = CryptoJS.AES.encrypt(lowerMail, key, { mode: CryptoJS.mode.ECB }).toString();
+
     const success = await Register.findOne({ Email: lowerMail });
     try {
         if (success) {
 
             var transport = nodemailer.createTransport({
-                service: "gmail",
+                host: "smtp-mail.outlook.com",
+                secureConnection: false,
+                port: 587,
+                tls: {
+                    ciphers:'SSLv3'
+                },
                 auth: {
-                    user: "noreply.blooddonar@gmail.com",
-                    pass: "saroflix112001"
+                    user: 'no.reply.blood.donor@outlook.com',
+                    pass: 'Saroflix@2001'
                 }
             });
 
+            // https://morning-fortress-21466.herokuapp.com/#/resetPass
+            
             var mailOptions = {
-                from: "noreply.blooddonar@gmail.com",
-                to: lowerMail,
+                from: "no.reply.blood.donor@outlook.com",
+                to: mailTo,
                 subject: "WELCOME TO BLOOD DONOR :)",
                 html: `<div>
                 <p style="font-family:system-ui;font-size:30px;">Hi `+ success.Username + `</p><br>
                 <h1 style="font-family: "Gill Sans", sans-serif;font-size:20px;">A request has been receieved to change the password for your account</h1><br>
-                <center><a href='https://morning-fortress-21466.herokuapp.com/#/resetPass'><button style="color:white;background-color: dodgerblue;inline-size: 300px;block-size: 40px;cursor: pointer;border-radius: 5px;outline: none;padding: 10px;border-color: dodgerblue;">Reset Password</button></a></center><br>
-                <p style="font-family: Georgia, serif;font-size:20px;">If you did not initiate this request,please contact us immediately at <span style="color:dodgerblue;text-decoration:underline">` + "noreply.blooddonar@gmail.com" + `</span></p><br>
+                <center><a href='http://localhost:8080/#/resetPass'><button style="color:white;background-color: dodgerblue;inline-size: 300px;block-size: 40px;cursor: pointer;border-radius: 5px;outline: none;padding: 10px;border-color: dodgerblue;">Reset Password</button></a></center><br>
+                <p style="font-family: Georgia, serif;font-size:20px;">If you did not initiate this request,please contact us immediately at <span style="color:dodgerblue;text-decoration:underline">` + "noreply.blood.donar@outlook.com" + `</span></p><br>
                 <p style="font-family: Georgia, serif;font-size:20px;">Thank you,</p>
                 <p style="font-family: Georgia, serif;font-size:20px;">BloodDonor Team</p></div>`,
             };
@@ -367,15 +413,19 @@ app.patch("/resetPass/:id", async (req, res) => {
     const token = req.params.id;
     let payload = jwt.verify(token, "secretKey")
     const params = payload.subject;
+
     if (req.body.pass == req.body.cPass) {
+
+        let hashedPassword = crypto.createHash("sha256").update(req.body.pass).digest("hex");
+
         const success = await Register.findById({ _id: params })
         try {
             if (success) {
-                if (success.Password == req.body.pass) {
+                if (success.Password == hashedPassword) {
                     res.json("you entered the old password!")
                     console.log("you entered the old password!");
                 } else {
-                    const done = await Register.findByIdAndUpdate({ _id: params }, { Password: req.body.pass }, { returnOriginal: false })
+                    const done = await Register.findByIdAndUpdate({ _id: params }, { Password: hashedPassword }, { returnOriginal: false })
                     try {
                         console.log("Password reset successfully!");
                         res.json("ok")
@@ -401,21 +451,25 @@ app.patch("/changePass/:id", async (req, res) => {
     let payload = jwt.verify(token, "secretKey")
     const params = payload.subject;
     if (req.body.pass == req.body.cPass) {
+
+        let hashedPassword = crypto.createHash("sha256").update(req.body.pass).digest("hex");
+        let oldHashedPassword = crypto.createHash("sha256").update(req.body.oldPass).digest("hex");
+
         const success = await Register.findById({ _id: params })
         try {
             if (success) {
-                if (success.Password == req.body.pass) {
+                if (success.Password == hashedPassword) {
                     res.json("you entered the old password!")
                     console.log("you entered the old password!");
-                } else if (success.Password == req.body.oldPass) {
-                    const done = await Register.findByIdAndUpdate({ _id: params }, { Password: req.body.pass }, { returnOriginal: false })
+                } else if (success.Password == oldHashedPassword) {
+                    const done = await Register.findByIdAndUpdate({ _id: params }, { Password: hashedPassword }, { returnOriginal: false })
                     try {
                         console.log("Password changed successfully!");
                         res.json("ok")
                     } catch (e) {
                         console.log(e)
                     }
-                } else if (success.Password != req.body.oldPass) {
+                } else if (success.Password != oldHashedPassword) {
                     res.json("Your Old password is incorrect!")
                     console.log("Your Old password is incorrect!");
                 }
@@ -446,30 +500,37 @@ app.post("/contact", async (req, res) => {
             lowerMail = mail + mailDomain
         }
     }
+
+    lowerMail= CryptoJS.AES.encrypt(lowerMail, key, { mode: CryptoJS.mode.ECB }).toString();
+
     const success = await Register.findOne({ Email: lowerMail })
     try {
         if (success) {
 
             var obj = {
                 Name: success.Username,
-                Email: success.Email,
-                PhoneNumber: success.PhoneNumber,
                 Feedback: req.body.feedback
             }
 
             var transport = nodemailer.createTransport({
-                service: "gmail",
+                host: "smtp-mail.outlook.com",
+                secureConnection: false,
+                port: 587,
+                tls: {
+                    ciphers:'SSLv3'
+                },
                 auth: {
-                    user: "noreply.blooddonar@gmail.com",
-                    pass: "saroflix112001"
+                    user: 'no.reply.blood.donor@outlook.com',
+                    pass: 'Saroflix@2001'
                 }
             });
 
             var mailOptions = {
-                from: "noreply.blooddonar@gmail.com",
+                from: "no.reply.blood.donor@outlook.com",
                 to: "customercare.blooddonor@gmail.com",
                 subject: "CUSTOMER FEEDBACK",
-                html: "<p><astrong>Hi Admin, </strong></p> <p> you get a new customer query! </p><p> Name: " + obj.Name + "<p><p> Email: " + obj.Email + "<p><p> Phone Number: " + obj.PhoneNumber + "<p><p> Feedback: " + obj.Feedback + "<p>"
+                html: "<p><astrong>Hi Admin, </strong></p> <p> you get a new customer query! </p><p> Name: " + obj.Name + "<p><p> Feedback: " + obj.Feedback + "<p>"
+                // html: "<p><astrong>Hi Admin, </strong></p> <p> you get a new customer query! </p><p> Name: " + obj.Name + "<p><p> Email: " + obj.Email + "<p><p> Phone Number: " + obj.PhoneNumber + "<p><p> Feedback: " + obj.Feedback + "<p>"
             };
 
             transport.sendMail(mailOptions, (error, info) => {

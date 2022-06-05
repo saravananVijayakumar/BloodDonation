@@ -8,7 +8,9 @@ var RegisterSchema = new mongoose.Schema({
     changeBG: Number,
     Email: String,
     Password: String,
-    PhoneNumber: Number,
+    DonatedCount: Number,
+    PhoneNumber: String,
+    District: String,
     Profile: String,
     Deactivate: Boolean,
     Activate: Boolean
